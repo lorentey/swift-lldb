@@ -17,6 +17,8 @@
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Stream.h"
 
+#include "AdditionalFormatters.h"
+
 namespace lldb_private {
 namespace formatters {
 template <bool cf_style>
@@ -28,11 +30,11 @@ SyntheticChildrenFrontEnd *NSSetSyntheticFrontEndCreator(CXXSyntheticChildren *,
 
 class NSSet_Additionals {
 public:
-  static std::map<ConstString, CXXFunctionSummaryFormat::Callback> &
-  GetAdditionalSummaries();
+  typedef AdditionalFormatters<CXXFunctionSummaryFormat::Callback> SummaryFormatters;
+  static SummaryFormatters &GetAdditionalSummaries();
 
-  static std::map<ConstString, CXXSyntheticChildren::CreateFrontEndCallback> &
-  GetAdditionalSynthetics();
+  typedef AdditionalFormatters<CXXSyntheticChildren::CreateFrontEndCallback> Synthetics;
+  static Synthetics &GetAdditionalSynthetics();
 };
 } // namespace formatters
 } // namespace lldb_private

@@ -12,6 +12,8 @@
 
 #include "SwiftHashedContainer.h"
 
+#include "lldb/Core/Value.h"  // +
+
 #include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/DataFormatters/FormattersHelpers.h"
 #include "lldb/Symbol/ClangASTContext.h"
@@ -25,6 +27,8 @@
 
 #include "swift/AST/ASTContext.h"
 #include "llvm/ADT/StringRef.h"
+
+#include <iostream>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -61,15 +65,15 @@ bool SwiftHashedContainerSyntheticFrontEndBufferHandler::IsValid() {
   return m_frontend.get() != nullptr;
 }
 
-size_t SwiftHashedContainerNativeBufferHandler::GetCount() { return m_count; }
+size_t SwiftHashedContainerStorageBufferHandler::GetCount() { return m_count; }
 
 lldb_private::CompilerType
-SwiftHashedContainerNativeBufferHandler::GetElementType() {
+SwiftHashedContainerStorageBufferHandler::GetElementType() {
   return m_element_type;
 }
 
 lldb::ValueObjectSP
-SwiftHashedContainerNativeBufferHandler::GetElementAtIndex(size_t idx) {
+SwiftHashedContainerStorageBufferHandler::GetElementAtIndex(size_t idx) {
   lldb::ValueObjectSP null_valobj_sp;
   if (idx >= m_count)
     return null_valobj_sp;
@@ -110,7 +114,7 @@ SwiftHashedContainerNativeBufferHandler::GetElementAtIndex(size_t idx) {
   return null_valobj_sp;
 }
 
-bool SwiftHashedContainerNativeBufferHandler::ReadBitmaskAtIndex(Index i, 
+bool SwiftHashedContainerStorageBufferHandler::ReadBitmaskAtIndex(Index i, 
                                                                  Status &error) {
   if (i >= m_capacity)
     return false;
@@ -136,12 +140,12 @@ bool SwiftHashedContainerNativeBufferHandler::ReadBitmaskAtIndex(Index i,
 }
 
 lldb::addr_t
-SwiftHashedContainerNativeBufferHandler::GetLocationOfKeyAtCell(Cell i) {
+SwiftHashedContainerStorageBufferHandler::GetLocationOfKeyAtCell(Cell i) {
   return m_keys_ptr + (i * m_key_stride);
 }
 
 lldb::addr_t
-SwiftHashedContainerNativeBufferHandler::GetLocationOfValueAtCell(Cell i) {
+SwiftHashedContainerStorageBufferHandler::GetLocationOfValueAtCell(Cell i) {
   return m_value_stride ? m_values_ptr + (i * m_value_stride)
                         : LLDB_INVALID_ADDRESS;
 }
@@ -149,7 +153,7 @@ SwiftHashedContainerNativeBufferHandler::GetLocationOfValueAtCell(Cell i) {
 // these are sharp tools that assume that the Cell contains valid data and the
 // destination buffer
 // has enough room to store the data to - use with caution
-bool SwiftHashedContainerNativeBufferHandler::GetDataForKeyAtCell(
+bool SwiftHashedContainerStorageBufferHandler::GetDataForKeyAtCell(
     Cell i, void *data_ptr) {
   if (!data_ptr)
     return false;
@@ -163,7 +167,7 @@ bool SwiftHashedContainerNativeBufferHandler::GetDataForKeyAtCell(
   return true;
 }
 
-bool SwiftHashedContainerNativeBufferHandler::GetDataForValueAtCell(
+bool SwiftHashedContainerStorageBufferHandler::GetDataForValueAtCell(
     Cell i, void *data_ptr) {
   if (!data_ptr || !m_value_stride)
     return false;
@@ -177,11 +181,11 @@ bool SwiftHashedContainerNativeBufferHandler::GetDataForValueAtCell(
   return true;
 }
 
-SwiftHashedContainerNativeBufferHandler::
-    SwiftHashedContainerNativeBufferHandler(
-        lldb::ValueObjectSP nativeStorage_sp, CompilerType key_type,
+SwiftHashedContainerStorageBufferHandler::
+    SwiftHashedContainerStorageBufferHandler(
+        lldb::ValueObjectSP storage_sp, CompilerType key_type,
         CompilerType value_type)
-    : m_nativeStorage(nativeStorage_sp.get()), m_process(nullptr),
+    : m_storage(storage_sp.get()), m_process(nullptr),
       m_ptr_size(0), m_count(0), m_capacity(0),
       m_bitmask_ptr(LLDB_INVALID_ADDRESS), m_keys_ptr(LLDB_INVALID_ADDRESS),
       m_values_ptr(LLDB_INVALID_ADDRESS), m_element_type(),
@@ -200,7 +204,7 @@ SwiftHashedContainerNativeBufferHandler::
   static ConstString g_capacity("bucketCount");
   static ConstString g_count("count");
 
-  if (!m_nativeStorage)
+  if (!m_storage)
     return;
   if (!key_type)
     return;
@@ -220,13 +224,13 @@ SwiftHashedContainerNativeBufferHandler::
   if (!m_element_type)
     return;
 
-  m_process = m_nativeStorage->GetProcessSP().get();
+  m_process = m_storage->GetProcessSP().get();
   if (!m_process)
     return;
 
   m_ptr_size = m_process->GetAddressByteSize();
 
-  auto buffer_sp = m_nativeStorage->GetChildAtNamePath({g_buffer});
+  auto buffer_sp = m_storage->GetChildAtNamePath({g_buffer});
   if (buffer_sp) {
     auto buffer_ptr = buffer_sp->GetValueAsUnsigned(LLDB_INVALID_ADDRESS);
     if (buffer_ptr == 0 || buffer_ptr == LLDB_INVALID_ADDRESS)
@@ -243,31 +247,31 @@ SwiftHashedContainerNativeBufferHandler::
       return;
   } else {
     auto capacity_sp =
-        m_nativeStorage->GetChildAtNamePath({g_capacity, g__value});
+        m_storage->GetChildAtNamePath({g_capacity, g__value});
     if (!capacity_sp)
       return;
     m_capacity = capacity_sp->GetValueAsUnsigned(0);
-    auto count_sp = m_nativeStorage->GetChildAtNamePath({g_count, g__value});
+    auto count_sp = m_storage->GetChildAtNamePath({g_count, g__value});
     if (!count_sp)
       return;
     m_count = count_sp->GetValueAsUnsigned(0);
   }
 
-  m_nativeStorage = nativeStorage_sp.get();
+  m_storage = storage_sp.get();
   m_bitmask_ptr =
-      m_nativeStorage
+      m_storage
           ->GetChildAtNamePath({g_initializedEntries, g_values, g__rawValue})
           ->GetValueAsUnsigned(LLDB_INVALID_ADDRESS);
 
   if (ValueObjectSP value_child_sp =
-          m_nativeStorage->GetChildAtNamePath({g_values, g__rawValue})) {
+          m_storage->GetChildAtNamePath({g_values, g__rawValue})) {
     // it is fine not to pass a value_type, but if the value child exists, then
     // you have to pass one
     if (!value_type)
       return;
     m_values_ptr = value_child_sp->GetValueAsUnsigned(LLDB_INVALID_ADDRESS);
   }
-  m_keys_ptr = m_nativeStorage->GetChildAtNamePath({g_keys, g__rawValue})
+  m_keys_ptr = m_storage->GetChildAtNamePath({g_keys, g__rawValue})
                    ->GetValueAsUnsigned(LLDB_INVALID_ADDRESS);
   // Make sure we can read the bitmask at the ount index.  
   // and this will keep us from trying
@@ -284,8 +288,8 @@ SwiftHashedContainerNativeBufferHandler::
   }
 }
 
-bool SwiftHashedContainerNativeBufferHandler::IsValid() {
-  return (m_nativeStorage != nullptr) && (m_process != nullptr) &&
+bool SwiftHashedContainerStorageBufferHandler::IsValid() {
+  return (m_storage != nullptr) && (m_process != nullptr) &&
          m_element_type.IsValid() && m_bitmask_ptr != LLDB_INVALID_ADDRESS &&
          m_keys_ptr != LLDB_INVALID_ADDRESS &&
          /*m_values_ptr != LLDB_INVALID_ADDRESS && you can't check values
@@ -294,85 +298,38 @@ bool SwiftHashedContainerNativeBufferHandler::IsValid() {
 }
 
 std::unique_ptr<SwiftHashedContainerBufferHandler>
-SwiftHashedContainerBufferHandler::CreateBufferHandlerForNativeStorageOwner(
-    ValueObject &valobj, lldb::addr_t storage_ptr, bool fail_on_no_children,
+SwiftHashedContainerBufferHandler::CreateBufferHandlerForNativeStorage(
+    ValueObject &valobj,
+    ValueObjectSP storage_sp,
     NativeCreatorFunction Native) {
+  if (!storage_sp) { return nullptr; }
 
-  CompilerType valobj_type(valobj.GetCompilerType());
-  CompilerType key_type = valobj_type.GetGenericArgumentType(0);
-  CompilerType value_type = valobj_type.GetGenericArgumentType(1);
+  CompilerType child_type(valobj.GetCompilerType());
+  CompilerType key_type(child_type.GetGenericArgumentType(0));
+  CompilerType value_type(child_type.GetGenericArgumentType(1));
 
-  static ConstString g_Native("native");
-  static ConstString g_nativeStorage("nativeStorage");
-  static ConstString g_buffer("buffer");
-
-  Status error;
-
-  ProcessSP process_sp(valobj.GetProcessSP());
-  if (!process_sp)
-    return nullptr;
-
-  ValueObjectSP native_sp(valobj.GetChildAtNamePath({g_nativeStorage}));
-  ValueObjectSP native_buffer_sp(
-      valobj.GetChildAtNamePath({g_nativeStorage, g_buffer}));
-  if (!native_sp || !native_buffer_sp) {
-    if (fail_on_no_children)
-      return nullptr;
-    else {
-      lldb::addr_t native_storage_ptr =
-          storage_ptr + (3 * process_sp->GetAddressByteSize());
-      native_storage_ptr =
-          process_sp->ReadPointerFromMemory(native_storage_ptr, error);
-      // (AnyObject,AnyObject)?
-      SwiftASTContext *swift_ast_ctx = llvm::dyn_cast_or_null<SwiftASTContext>(
-          process_sp->GetTarget().GetScratchTypeSystemForLanguage(
-              &error, eLanguageTypeSwift));
-      if (swift_ast_ctx) {
-        CompilerType element_type(swift_ast_ctx->GetTypeFromMangledTypename(
-            SwiftLanguageRuntime::GetCurrentMangledName(
-                "_TtGSqTPs9AnyObject_PS____")
-                .c_str(),
-            error));
-        auto handler = std::unique_ptr<SwiftHashedContainerBufferHandler>(
-            Native(native_sp, key_type, value_type));
-        if (handler && handler->IsValid())
-          return handler;
-      }
-      return nullptr;
-    }
-    }
-
-    CompilerType child_type(native_sp->GetCompilerType());
-    CompilerType element_type(child_type.GetGenericArgumentType(1));
-    if (element_type.IsValid() == false ||
-        child_type.GetGenericArgumentKind(1) != lldb::eBoundGenericKindType)
-      return nullptr;
-    lldb::addr_t native_storage_ptr = process_sp->ReadPointerFromMemory(storage_ptr + 2*process_sp->GetAddressByteSize(), error);
-    if (error.Fail() || native_storage_ptr == LLDB_INVALID_ADDRESS)
-        return nullptr;
-    auto handler = std::unique_ptr<SwiftHashedContainerBufferHandler>(Native(native_sp, key_type, value_type));
-    if (handler && handler->IsValid())
-        return handler;
-
-  return nullptr;
+  return std::unique_ptr<SwiftHashedContainerBufferHandler>(
+    Native(storage_sp, key_type, value_type));
 }
 
 std::unique_ptr<SwiftHashedContainerBufferHandler>
 SwiftHashedContainerBufferHandler::CreateBufferHandler(
-    ValueObject &valobj, NativeCreatorFunction Native,
-    SyntheticCreatorFunction Synthetic, ConstString mangled,
-    ConstString demangled) {
+    ValueObject &valobj,
+    NativeCreatorFunction Native,
+    SyntheticCreatorFunction Synthetic,
+    ConstString mangledStorageTypeName,
+    ConstString demangledStorageTypeName) {
   static ConstString g__variantStorage("_variantStorage");
   static ConstString g__variantBuffer("_variantBuffer"); // Swift 4 & 4.2
   static ConstString g__variant("_variant"); // Swift 5
-  static ConstString g_Native("native");
-  static ConstString g_Cocoa("cocoa");
+  static ConstString g_native("native");
+  static ConstString g_cocoa("cocoa");
   static ConstString g_nativeStorage("nativeStorage");
   static ConstString g_nativeBuffer("nativeBuffer");
   static ConstString g_buffer("buffer");
   static ConstString g_storage("storage");
   static ConstString g__storage("_storage"); // Swift 4, 5
-  static ConstString g_Some("some");
+  static ConstString g_base("base"); // Swift 5
 
   Status error;
 
@@ -380,73 +337,89 @@ SwiftHashedContainerBufferHandler::CreateBufferHandler(
   if (!process_sp)
     return nullptr;
 
-  ConstString type_name_cs(valobj.GetTypeName());
-  if (type_name_cs) {
-    llvm::StringRef type_name_strref(type_name_cs.GetStringRef());
-
-    if (type_name_strref.startswith(mangled.GetCString()) ||
-        type_name_strref.startswith(demangled.GetCString())) {
-      return CreateBufferHandlerForNativeStorageOwner(
-          valobj, valobj.GetPointerValue(), false, Native);
-    }
-  }
-
   ValueObjectSP valobj_sp =
       valobj.GetSP()->GetQualifiedRepresentationIfAvailable(
           lldb::eDynamicCanRunTarget, false);
 
-  ValueObjectSP variantSP(
-      valobj_sp->GetChildMemberWithName(g__variant, true));
+  ConstString type_name_cs(valobj.GetTypeName());
+  if (type_name_cs) {
+    std::cerr << "CreateBufferHandler type_name: " << type_name_cs.AsCString() << std::endl;
+  }
+  if (type_name_cs) {
+    llvm::StringRef type_name_strref(type_name_cs.GetStringRef());
 
-  if (!variantSP)
-    variantSP = valobj_sp->GetChildMemberWithName(g__variantBuffer, true);
+    if (type_name_strref.startswith(mangledStorageTypeName.GetCString()) ||
+        type_name_strref.startswith(demangledStorageTypeName.GetCString())) {
+      return CreateBufferHandlerForNativeStorage(valobj, valobj_sp, Native);
+    }
+  }
 
-  if (!variantSP)
-    variantSP = valobj_sp->GetChildMemberWithName(g__variantStorage, true);
+  ValueObjectSP variant_sp(valobj_sp->GetChildMemberWithName(g__variant, true));
+  if (!variant_sp)  // Swift 4
+    variant_sp = valobj_sp->GetChildMemberWithName(g__variantBuffer, true);
+  if (!variant_sp) // Swift 3
+    variant_sp = valobj_sp->GetChildMemberWithName(g__variantStorage, true);
 
-  if (!variantSP) {
+  if (!variant_sp) {
+    std::cerr << type_name_cs.AsCString() << std::endl;
     static ConstString g__SwiftDeferredNSDictionary(
-        "Swift._SwiftDeferredNSDictionary");
+      "Swift._SwiftDeferredNSDictionary<");
     if (type_name_cs.GetStringRef().startswith(
-            g__SwiftDeferredNSDictionary.GetStringRef())) {
-      ValueObjectSP storage_sp(
-          valobj_sp->GetChildAtNamePath({g_nativeBuffer, g__storage}));
-      if (storage_sp) {
-        CompilerType child_type(valobj_sp->GetCompilerType());
-        CompilerType key_type(child_type.GetGenericArgumentType(0));
-        CompilerType value_type(child_type.GetGenericArgumentType(1));
-
-        auto handler = std::unique_ptr<SwiftHashedContainerBufferHandler>(
-            Native(storage_sp, key_type, value_type));
-        if (handler && handler->IsValid())
-          return handler;
-      }
+        g__SwiftDeferredNSDictionary.GetStringRef())) {
+      ValueObjectSP storage_sp( // Swift 5+
+        valobj_sp->GetChildAtNamePath({g_base, g__storage}));
+      if (!storage_sp) // Swift 4
+        storage_sp =
+          valobj_sp->GetChildAtNamePath({g_nativeBuffer, g__storage});
+      return CreateBufferHandlerForNativeStorage(
+        *valobj_sp, storage_sp, Native);
+    }
+    static ConstString g__HashableTypedNativeDictionaryStorage(
+      "Swift._HashableTypedNativeDictionaryStorage");
+    if (type_name_cs.GetStringRef().startswith( // Swift 4
+        g__HashableTypedNativeDictionaryStorage.GetStringRef())) {
+      return CreateBufferHandlerForNativeStorage(*valobj_sp, valobj_sp, Native);
     }
     return nullptr;
   }
 
-  ConstString storage_kind(variantSP->GetValueAsCString());
+  ConstString variant_cs(variant_sp->GetValueAsCString());
 
-  if (!storage_kind)
+  if (!variant_cs)
     return nullptr;
 
-  if (g_Cocoa == storage_kind) {
-    ValueObjectSP child_sp(
-        variantSP->GetChildMemberWithName(g_Native, true));
+  if (g_native == variant_cs) {
+    ValueObjectSP storage_sp( // Swift 5+
+      variant_sp->GetChildAtNamePath({g_native, g__storage}));
+    if (!storage_sp) // Swift 4
+      storage_sp = variant_sp->GetChildAtNamePath({g_native, g_nativeStorage});
+    if (!storage_sp)
+      return nullptr;
+    return CreateBufferHandlerForNativeStorage(*valobj_sp, storage_sp, Native);
+  }
+
+  if (g_cocoa == variant_cs) {
+    // it's an NSDictionary in disguise
+    static ConstString g_object("object"); // Swift 5+
+    static ConstString g_cocoaDictionary("cocoaDictionary"); // Swift 4
+    ValueObjectSP child_sp(variant_sp->GetChildAtNamePath({g_cocoa, g_object}));
+    if (!child_sp)
+      child_sp = variant_sp->GetChildAtNamePath({g_cocoa, g_cocoaDictionary});
     if (!child_sp)
       return nullptr;
-    // it's an NSDictionary in disguise
-    uint64_t cocoa_storage_ptr =
-        child_sp->GetValueAsUnsigned(LLDB_INVALID_ADDRESS);
-    if (cocoa_storage_ptr == LLDB_INVALID_ADDRESS || error.Fail())
+    // child_sp is the _NSDictionary/_NSSet reference.
+    ValueObjectSP ref_sp = child_sp->GetChildAtIndex(0, true); // instance
+    if (!ref_sp)
       return nullptr;
-    cocoa_storage_ptr &= 0x00FFFFFFFFFFFFFF; // for some reason I need to zero
-                                             // out the MSB; figure out why
-                                             // later
+    uint64_t cocoa_ptr = ref_sp->GetValueAsUnsigned(LLDB_INVALID_ADDRESS);
+    if (cocoa_ptr == LLDB_INVALID_ADDRESS)
+      return nullptr;
+    // FIXME: for some reason I need to zero out the MSB; figure out why
+    cocoa_ptr &= 0x00FFFFFFFFFFFFFF;
     CompilerType id =
         process_sp->GetTarget().GetScratchClangASTContext()->GetBasicType(
             lldb::eBasicTypeObjCID);
-    InferiorSizedWord isw(cocoa_storage_ptr, *process_sp);
+    InferiorSizedWord isw(cocoa_ptr, *process_sp);
     ValueObjectSP cocoarr_sp = ValueObject::CreateValueObjectFromData(
         "cocoarr", isw.GetAsData(process_sp->GetByteOrder()),
         valobj.GetExecutionContextRef(), id);
@@ -457,41 +430,12 @@ SwiftHashedContainerBufferHandler::CreateBufferHandler(
     if (!descriptor_sp)
       return nullptr;
     ConstString classname(descriptor_sp->GetClassName());
-    if (classname &&
-        classname.GetStringRef().startswith(mangled.GetCString())) {
-      return CreateBufferHandlerForNativeStorageOwner(
-          *variantSP, cocoa_storage_ptr, true, Native);
-    } else {
-      auto handler = std::unique_ptr<SwiftHashedContainerBufferHandler>(
-          Synthetic(cocoarr_sp));
-      if (handler && handler->IsValid())
-        return handler;
-      return nullptr;
-    }
-  }
-  if (g_Native == storage_kind) {
-    ValueObjectSP nativeSP(variantSP->GetChildAtNamePath({g_Native}));
-    ValueObjectSP nativeStorageSP(
-        variantSP->GetChildAtNamePath({g_Native, g__storage}));
-    if (!nativeSP)
-      return nullptr;
-    if (!nativeStorageSP)
-      nativeStorageSP = variantSP->GetChildAtNamePath({g_Native, g_nativeStorage});
-    if (!nativeStorageSP)
-      return nullptr;
-
-    CompilerType child_type(valobj.GetCompilerType());
-    lldb::TemplateArgumentKind kind;
-    CompilerType key_type(child_type.GetGenericArgumentType(0));
-    CompilerType value_type(child_type.GetGenericArgumentType(1));
-
     auto handler = std::unique_ptr<SwiftHashedContainerBufferHandler>(
-        Native(nativeStorageSP, key_type, value_type));
+      Synthetic(cocoarr_sp));
     if (handler && handler->IsValid())
       return handler;
     return nullptr;
   }
-
   return nullptr;
 }
 

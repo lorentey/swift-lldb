@@ -17,7 +17,8 @@
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Stream.h"
 
-#include <map>
+#include "AdditionalFormatters.h"
+
 #include <memory>
 
 namespace lldb_private {
@@ -40,54 +41,11 @@ NSDictionarySyntheticFrontEndCreator(CXXSyntheticChildren *,
 
 class NSDictionary_Additionals {
 public:
-  class AdditionalFormatterMatching {
-  public:
-    class Matcher {
-    public:
-      virtual ~Matcher() = default;
-      virtual bool Match(ConstString class_name) = 0;
+  typedef AdditionalFormatters<CXXFunctionSummaryFormat::Callback> SummaryFormatters;
+  static SummaryFormatters &GetAdditionalSummaries();
 
-      typedef std::unique_ptr<Matcher> UP;
-    };
-    class Prefix : public Matcher {
-    public:
-      Prefix(ConstString p);
-      virtual ~Prefix() = default;
-      virtual bool Match(ConstString class_name) override;
-
-    private:
-      ConstString m_prefix;
-    };
-    class Full : public Matcher {
-    public:
-      Full(ConstString n);
-      virtual ~Full() = default;
-      virtual bool Match(ConstString class_name) override;
-
-    private:
-      ConstString m_name;
-    };
-    typedef Matcher::UP MatcherUP;
-
-    MatcherUP GetFullMatch(ConstString n) { return llvm::make_unique<Full>(n); }
-
-    MatcherUP GetPrefixMatch(ConstString p) {
-      return llvm::make_unique<Prefix>(p);
-    }
-  };
-
-  template <typename FormatterType>
-  using AdditionalFormatter =
-      std::pair<AdditionalFormatterMatching::MatcherUP, FormatterType>;
-
-  template <typename FormatterType>
-  using AdditionalFormatters = std::vector<AdditionalFormatter<FormatterType>>;
-
-  static AdditionalFormatters<CXXFunctionSummaryFormat::Callback> &
-  GetAdditionalSummaries();
-
-  static AdditionalFormatters<CXXSyntheticChildren::CreateFrontEndCallback> &
-  GetAdditionalSynthetics();
+  typedef AdditionalFormatters<CXXSyntheticChildren::CreateFrontEndCallback> Synthetics;
+  static Synthetics &GetAdditionalSynthetics();
 };
 } // namespace formatters
 } // namespace lldb_private

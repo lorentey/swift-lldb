@@ -26,8 +26,9 @@
 namespace lldb_private {
 namespace formatters {
 namespace swift {
-bool Dictionary_SummaryProvider(ValueObject &valobj, Stream &stream,
-                                const TypeSummaryOptions &options);
+bool Dictionary_SummaryProvider(
+  ValueObject &valobj, Stream &stream,
+  const TypeSummaryOptions &options);
 
 SyntheticChildrenFrontEnd *
 DictionarySyntheticFrontEndCreator(CXXSyntheticChildren *, lldb::ValueObjectSP);

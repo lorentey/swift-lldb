@@ -36,36 +36,16 @@ using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::formatters;
 
-NSDictionary_Additionals::AdditionalFormatterMatching::Prefix::Prefix(
-    ConstString p)
-    : m_prefix(p) {}
-
-bool NSDictionary_Additionals::AdditionalFormatterMatching::Prefix::Match(
-    ConstString class_name) {
-  return class_name.GetStringRef().startswith(m_prefix.GetStringRef());
-}
-
-NSDictionary_Additionals::AdditionalFormatterMatching::Full::Full(ConstString n)
-    : m_name(n) {}
-
-bool NSDictionary_Additionals::AdditionalFormatterMatching::Full::Match(
-    ConstString class_name) {
-  return (class_name == m_name);
-}
-
-NSDictionary_Additionals::AdditionalFormatters<
-    CXXFunctionSummaryFormat::Callback> &
+NSDictionary_Additionals::SummaryFormatters &
 NSDictionary_Additionals::GetAdditionalSummaries() {
-  static AdditionalFormatters<CXXFunctionSummaryFormat::Callback> g_map;
-  return g_map;
+  static SummaryFormatters g_formatters;
+  return g_formatters;
 }
 
-NSDictionary_Additionals::AdditionalFormatters<
-    CXXSyntheticChildren::CreateFrontEndCallback> &
+NSDictionary_Additionals::Synthetics &
 NSDictionary_Additionals::GetAdditionalSynthetics() {
-  static AdditionalFormatters<CXXSyntheticChildren::CreateFrontEndCallback>
-      g_map;
-  return g_map;
+  static Synthetics g_synthetics;
+  return g_synthetics;
 }
 
 static CompilerType GetLLDBNSPairType(TargetSP target_sp) {
@@ -438,10 +418,10 @@ bool lldb_private::formatters::NSDictionarySummaryProvider(
    value &= ~0x0f1f000000000000UL;
    }*/
   else {
-    auto &map(NSDictionary_Additionals::GetAdditionalSummaries());
-    for (auto &candidate : map) {
-      if (candidate.first && candidate.first->Match(class_name))
-        return candidate.second(valobj, stream, options);
+    auto &summaries(NSDictionary_Additionals::GetAdditionalSummaries());
+    auto match = summaries.Match(class_name, nullptr);
+    if (match) {
+      return match(valobj, stream, options);
     }
     return false;
   }
@@ -514,10 +494,10 @@ lldb_private::formatters::NSDictionarySyntheticFrontEndCreator(
   } else if (class_name == g_Dictionary1) {
     return (new NSDictionary1SyntheticFrontEnd(valobj_sp));
   } else {
-    auto &map(NSDictionary_Additionals::GetAdditionalSynthetics());
-    for (auto &candidate : map) {
-      if (candidate.first && candidate.first->Match((class_name)))
-        return candidate.second(synth, valobj_sp);
+    auto &synthetics(NSDictionary_Additionals::GetAdditionalSynthetics());
+    auto match = synthetics.Match(class_name, nullptr);
+    if (match) {
+      return match(synth, valobj_sp);
     }
   }
 

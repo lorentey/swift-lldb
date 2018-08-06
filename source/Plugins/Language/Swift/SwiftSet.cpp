@@ -29,8 +29,8 @@ using namespace lldb_private::formatters::swift;
 namespace lldb_private {
 namespace formatters {
 namespace swift {
-class SwiftSetNativeBufferHandler
-    : public SwiftHashedContainerNativeBufferHandler {
+class SwiftSetStorageBufferHandler
+    : public SwiftHashedContainerStorageBufferHandler {
 public:
   SwiftHashedContainerBufferHandler::Kind GetKind() { return Kind::eSet; }
 
@@ -40,9 +40,9 @@ public:
 
   virtual lldb::ValueObjectSP GetElementAtIndex(size_t);
 
-  SwiftSetNativeBufferHandler(ValueObjectSP nativeStorage_sp,
+  SwiftSetStorageBufferHandler(ValueObjectSP nativeStorage_sp,
                               CompilerType key_type)
-      : SwiftHashedContainerNativeBufferHandler(nativeStorage_sp, key_type,
+      : SwiftHashedContainerStorageBufferHandler(nativeStorage_sp, key_type,
                                                 CompilerType()) {}
   friend class SwiftHashedContainerBufferHandler;
 
@@ -89,13 +89,13 @@ bool lldb_private::formatters::swift::SetSyntheticFrontEnd::Update() {
       m_backend,
       [](ValueObjectSP a, CompilerType b,
          CompilerType c) -> SwiftHashedContainerBufferHandler * {
-        return new SwiftSetNativeBufferHandler(a, b);
+        return new SwiftSetStorageBufferHandler(a, b);
       },
       [](ValueObjectSP a) -> SwiftHashedContainerBufferHandler * {
         return new SwiftSetSyntheticFrontEndBufferHandler(a);
       },
-      SwiftSetNativeBufferHandler::GetMangledStorageTypeName(),
-      SwiftSetNativeBufferHandler::GetDemangledStorageTypeName());
+      SwiftSetStorageBufferHandler::GetMangledStorageTypeName(),
+      SwiftSetStorageBufferHandler::GetDemangledStorageTypeName());
   return false;
 }
 
@@ -105,13 +105,13 @@ bool lldb_private::formatters::swift::Set_SummaryProvider(
       valobj,
       [](ValueObjectSP a, CompilerType b,
          CompilerType c) -> SwiftHashedContainerBufferHandler * {
-        return new SwiftSetNativeBufferHandler(a, b);
+        return new SwiftSetStorageBufferHandler(a, b);
       },
       [](ValueObjectSP a) -> SwiftHashedContainerBufferHandler * {
         return new SwiftSetSyntheticFrontEndBufferHandler(a);
       },
-      SwiftSetNativeBufferHandler::GetMangledStorageTypeName(),
-      SwiftSetNativeBufferHandler::GetDemangledStorageTypeName());
+      SwiftSetStorageBufferHandler::GetMangledStorageTypeName(),
+      SwiftSetStorageBufferHandler::GetDemangledStorageTypeName());
 
   if (!handler)
     return false;
@@ -123,9 +123,9 @@ bool lldb_private::formatters::swift::Set_SummaryProvider(
   return true;
 };
 
-lldb::ValueObjectSP SwiftSetNativeBufferHandler::GetElementAtIndex(size_t idx) {
+lldb::ValueObjectSP SwiftSetStorageBufferHandler::GetElementAtIndex(size_t idx) {
   ValueObjectSP parent_element(
-      this->SwiftHashedContainerNativeBufferHandler::GetElementAtIndex(idx));
+      this->SwiftHashedContainerStorageBufferHandler::GetElementAtIndex(idx));
   if (!parent_element)
     return parent_element;
   static ConstString g_key("key");
@@ -134,12 +134,12 @@ lldb::ValueObjectSP SwiftSetNativeBufferHandler::GetElementAtIndex(size_t idx) {
                    : parent_element;
 }
 
-ConstString SwiftSetNativeBufferHandler::GetMangledStorageTypeName() {
+ConstString SwiftSetStorageBufferHandler::GetMangledStorageTypeName() {
   static ConstString g_name(SwiftLanguageRuntime::GetCurrentMangledName("_TtCs22_NativeSetStorageOwner"));
   return g_name;
 }
 
-ConstString SwiftSetNativeBufferHandler::GetDemangledStorageTypeName() {
+ConstString SwiftSetStorageBufferHandler::GetDemangledStorageTypeName() {
   static ConstString g_name(
       "Swift._NativeSetStorageOwner with unmangled suffix");
   return g_name;

@@ -53,9 +53,11 @@ public:
       SyntheticCreatorFunction;
 
   static std::unique_ptr<SwiftHashedContainerBufferHandler>
-  CreateBufferHandler(ValueObject &valobj, NativeCreatorFunction Native,
-                      SyntheticCreatorFunction Synthetic, ConstString mangled,
-                      ConstString demangled);
+  CreateBufferHandler(ValueObject &valobj,
+                      NativeCreatorFunction Native,
+                      SyntheticCreatorFunction Synthetic,
+                      ConstString mangledStorageTypeName,
+                      ConstString demangledStorageTypeName);
 
   virtual ~SwiftHashedContainerBufferHandler() {}
 
@@ -63,37 +65,12 @@ protected:
   virtual bool IsValid() = 0;
 
   static std::unique_ptr<SwiftHashedContainerBufferHandler>
-  CreateBufferHandlerForNativeStorageOwner(ValueObject &valobj,
-                                           lldb::addr_t storage_ptr,
-                                           bool fail_on_no_children,
-                                           NativeCreatorFunction Native);
+  CreateBufferHandlerForNativeStorage(ValueObject &valobj,
+                                      lldb::ValueObjectSP storage_sp,
+                                      NativeCreatorFunction Native);
 };
 
-class SwiftHashedContainerEmptyBufferHandler
-    : public SwiftHashedContainerBufferHandler {
-public:
-  virtual size_t GetCount() { return 0; }
-
-  virtual lldb_private::CompilerType GetElementType() { return m_elem_type; }
-
-  virtual lldb::ValueObjectSP GetElementAtIndex(size_t) {
-    return lldb::ValueObjectSP();
-  }
-
-  virtual ~SwiftHashedContainerEmptyBufferHandler() {}
-
-protected:
-  SwiftHashedContainerEmptyBufferHandler(CompilerType elem_type)
-      : m_elem_type(elem_type) {}
-  friend class SwiftHashedContainerBufferHandler;
-
-  virtual bool IsValid() { return true; }
-
-private:
-  lldb_private::CompilerType m_elem_type;
-};
-
-class SwiftHashedContainerNativeBufferHandler
+class SwiftHashedContainerStorageBufferHandler
     : public SwiftHashedContainerBufferHandler {
 public:
   virtual size_t GetCount();
@@ -102,15 +79,15 @@ public:
 
   virtual lldb::ValueObjectSP GetElementAtIndex(size_t);
 
-  virtual ~SwiftHashedContainerNativeBufferHandler() {}
+  virtual ~SwiftHashedContainerStorageBufferHandler() {}
 
 protected:
   typedef uint64_t Index;
   typedef uint64_t Cell;
 
-  SwiftHashedContainerNativeBufferHandler(lldb::ValueObjectSP nativeStorage_sp,
-                                          CompilerType key_type,
-                                          CompilerType value_type);
+  SwiftHashedContainerStorageBufferHandler(lldb::ValueObjectSP storage_sp,
+                                           CompilerType key_type,
+                                           CompilerType value_type);
   friend class SwiftHashedContainerBufferHandler;
 
   virtual bool IsValid();
@@ -126,7 +103,7 @@ protected:
   bool GetDataForValueAtCell(Cell, void *);
 
 private:
-  ValueObject *m_nativeStorage;
+  ValueObject *m_storage;
   Process *m_process;
   uint32_t m_ptr_size;
   uint64_t m_count;

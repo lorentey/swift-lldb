@@ -19,6 +19,7 @@
 #include "lldb/Target/SwiftLanguageRuntime.h"
 
 #include "swift/AST/ASTContext.h"
+#include "swift/Demangling/ManglingMacros.h"
 #include "llvm/ADT/StringRef.h"
 
 using namespace lldb;
@@ -29,8 +30,8 @@ using namespace lldb_private::formatters::swift;
 namespace lldb_private {
 namespace formatters {
 namespace swift {
-class SwiftDictionaryNativeBufferHandler
-    : public SwiftHashedContainerNativeBufferHandler {
+class SwiftDictionaryStorageBufferHandler
+    : public SwiftHashedContainerStorageBufferHandler {
 public:
   SwiftHashedContainerBufferHandler::Kind GetKind() {
     return Kind::eDictionary;
@@ -40,11 +41,11 @@ public:
 
   static ConstString GetDemangledStorageTypeName();
 
-  SwiftDictionaryNativeBufferHandler(ValueObjectSP nativeStorage_sp,
-                                     CompilerType key_type,
-                                     CompilerType value_type)
-      : SwiftHashedContainerNativeBufferHandler(nativeStorage_sp, key_type,
-                                                value_type) {}
+  SwiftDictionaryStorageBufferHandler(ValueObjectSP storage_sp,
+                                      CompilerType key_type,
+                                      CompilerType value_type)
+      : SwiftHashedContainerStorageBufferHandler(storage_sp, key_type,
+                                                 value_type) {}
   friend class SwiftHashedContainerBufferHandler;
 
 private:
@@ -90,15 +91,16 @@ lldb_private::formatters::swift::DictionarySyntheticFrontEndCreator(
 bool lldb_private::formatters::swift::DictionarySyntheticFrontEnd::Update() {
   m_buffer = SwiftHashedContainerBufferHandler::CreateBufferHandler(
       m_backend,
-      [](ValueObjectSP a, CompilerType b,
-         CompilerType c) -> SwiftHashedContainerBufferHandler * {
-        return new SwiftDictionaryNativeBufferHandler(a, b, c);
+      [](ValueObjectSP valobj_sp,
+         CompilerType key,
+         CompilerType value) -> SwiftHashedContainerBufferHandler * {
+        return new SwiftDictionaryStorageBufferHandler(valobj_sp, key, value);
       },
-      [](ValueObjectSP a) -> SwiftHashedContainerBufferHandler * {
-        return new SwiftDictionarySyntheticFrontEndBufferHandler(a);
+      [](ValueObjectSP valobj_sp) -> SwiftHashedContainerBufferHandler * {
+        return new SwiftDictionarySyntheticFrontEndBufferHandler(valobj_sp);
       },
-      SwiftDictionaryNativeBufferHandler::GetMangledStorageTypeName(),
-      SwiftDictionaryNativeBufferHandler::GetDemangledStorageTypeName());
+      SwiftDictionaryStorageBufferHandler::GetMangledStorageTypeName(),
+      SwiftDictionaryStorageBufferHandler::GetDemangledStorageTypeName());
   return false;
 }
 
@@ -106,15 +108,16 @@ bool lldb_private::formatters::swift::Dictionary_SummaryProvider(
     ValueObject &valobj, Stream &stream, const TypeSummaryOptions &options) {
   auto handler = SwiftHashedContainerBufferHandler::CreateBufferHandler(
       valobj,
-      [](ValueObjectSP a, CompilerType b,
-         CompilerType c) -> SwiftHashedContainerBufferHandler * {
-        return new SwiftDictionaryNativeBufferHandler(a, b, c);
+      [](ValueObjectSP valobj_sp,
+         CompilerType key,
+         CompilerType value) -> SwiftHashedContainerBufferHandler * {
+        return new SwiftDictionaryStorageBufferHandler(valobj_sp, key, value);
       },
-      [](ValueObjectSP a) -> SwiftHashedContainerBufferHandler * {
-        return new SwiftDictionarySyntheticFrontEndBufferHandler(a);
+      [](ValueObjectSP valobj_sp) -> SwiftHashedContainerBufferHandler * {
+        return new SwiftDictionarySyntheticFrontEndBufferHandler(valobj_sp);
       },
-      SwiftDictionaryNativeBufferHandler::GetMangledStorageTypeName(),
-      SwiftDictionaryNativeBufferHandler::GetDemangledStorageTypeName());
+      SwiftDictionaryStorageBufferHandler::GetMangledStorageTypeName(),
+      SwiftDictionaryStorageBufferHandler::GetDemangledStorageTypeName());
 
   if (!handler)
     return false;
@@ -126,13 +129,18 @@ bool lldb_private::formatters::swift::Dictionary_SummaryProvider(
   return true;
 };
 
-ConstString SwiftDictionaryNativeBufferHandler::GetMangledStorageTypeName() {
-  static ConstString g_name(SwiftLanguageRuntime::GetCurrentMangledName("_TtCs29_NativeDictionaryStorageOwner"));
+ConstString SwiftDictionaryStorageBufferHandler::GetMangledStorageTypeName() {
+  static ConstString g_name(
+    SwiftLanguageRuntime::GetCurrentMangledName(
+      "_TtGCs37_HashableTypedNativeDictionaryStorage"));
+  // static ConstString g_name(
+  //   SwiftLanguageRuntime::GetCurrentMangledName(
+  //     MANGLING_PREFIX_STR "s37_HashableTypedNativeDictionaryStorage"));
   return g_name;
 }
 
-ConstString SwiftDictionaryNativeBufferHandler::GetDemangledStorageTypeName() {
+ConstString SwiftDictionaryStorageBufferHandler::GetDemangledStorageTypeName() {
   static ConstString g_name(
-      "Swift._NativeDictionaryStorageOwner");
+      "Swift._HashableTypedNativeDictionaryStorage<");
   return g_name;
 }

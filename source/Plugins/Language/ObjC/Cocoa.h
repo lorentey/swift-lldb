@@ -17,6 +17,8 @@
 #include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Utility/Stream.h"
 
+#include "AdditionalFormatters.h"
+
 namespace lldb_private {
 namespace formatters {
 bool NSStringSummaryProvider(ValueObject &valobj, Stream &stream,
@@ -107,11 +109,11 @@ NSExceptionSyntheticFrontEndCreator(CXXSyntheticChildren *,
 
 class NSArray_Additionals {
 public:
-  static std::map<ConstString, CXXFunctionSummaryFormat::Callback> &
-  GetAdditionalSummaries();
+  typedef AdditionalFormatters<CXXFunctionSummaryFormat::Callback> SummaryFormatters;
+  static SummaryFormatters &GetAdditionalSummaries();
 
-  static std::map<ConstString, CXXSyntheticChildren::CreateFrontEndCallback> &
-  GetAdditionalSynthetics();
+  typedef AdditionalFormatters<CXXSyntheticChildren::CreateFrontEndCallback> Synthetics;
+  static Synthetics &GetAdditionalSynthetics();
 };
 } // namespace formatters
 } // namespace lldb_private

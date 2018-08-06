@@ -27,10 +27,10 @@ using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::formatters;
 
-std::map<ConstString, CXXFunctionSummaryFormat::Callback> &
+NSString_Additionals::SummaryFormatters &
 NSString_Additionals::GetAdditionalSummaries() {
-  static std::map<ConstString, CXXFunctionSummaryFormat::Callback> g_map;
-  return g_map;
+  static SummaryFormatters g_summaries;
+  return g_summaries;
 }
 
 static CompilerType GetNSPathStore2Type(Target &target) {
@@ -93,10 +93,11 @@ bool lldb_private::formatters::NSStringSummaryProvider(
     return NSTaggedString_SummaryProvider(valobj, descriptor, stream,
                                           summary_options);
 
-  auto &additionals_map(NSString_Additionals::GetAdditionalSummaries());
-  auto iter = additionals_map.find(class_name_cs), end = additionals_map.end();
-  if (iter != end)
-    return iter->second(valobj, stream, summary_options);
+  auto &summaries(NSString_Additionals::GetAdditionalSummaries());
+  auto match = summaries.Match(class_name_cs, nullptr);
+  if (match) {
+    return match(valobj, stream, summary_options);
+  }
 
   // if not a tagged pointer that we know about, try the normal route
   uint64_t info_bits_location = valobj_addr + ptr_size;
