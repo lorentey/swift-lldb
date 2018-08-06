@@ -35,17 +35,16 @@ using namespace lldb_private::formatters;
 
 namespace lldb_private {
 namespace formatters {
-std::map<ConstString, CXXFunctionSummaryFormat::Callback> &
+NSArray_Additionals::SummaryFormatters &
 NSArray_Additionals::GetAdditionalSummaries() {
-  static std::map<ConstString, CXXFunctionSummaryFormat::Callback> g_map;
-  return g_map;
+  static SummaryFormatters g_summaries;
+  return g_summaries;
 }
 
-std::map<ConstString, CXXSyntheticChildren::CreateFrontEndCallback> &
+NSArray_Additionals::Synthetics &
 NSArray_Additionals::GetAdditionalSynthetics() {
-  static std::map<ConstString, CXXSyntheticChildren::CreateFrontEndCallback>
-      g_map;
-  return g_map;
+  static Synthetics g_synthetics;
+  return g_synthetics;
 }
 
 class NSArrayMSyntheticFrontEndBase : public SyntheticChildrenFrontEnd {
@@ -424,10 +423,10 @@ bool lldb_private::formatters::NSArraySummaryProvider(
     if (error.Fail())
       return false;
   } else {
-    auto &map(NSArray_Additionals::GetAdditionalSummaries());
-    auto iter = map.find(class_name), end = map.end();
-    if (iter != end)
-      return iter->second(valobj, stream, options);
+    auto &summaries(NSArray_Additionals::GetAdditionalSummaries());
+    auto match = summaries.Match(class_name, nullptr);
+    if (match)
+      return match(valobj, stream, options);
     else
       return false;
   }
@@ -847,10 +846,11 @@ lldb_private::formatters::NSArraySyntheticFrontEndCreator(
     else
       return (new Foundation109::NSArrayMSyntheticFrontEnd(valobj_sp));
   } else {
-    auto &map(NSArray_Additionals::GetAdditionalSynthetics());
-    auto iter = map.find(class_name), end = map.end();
-    if (iter != end)
-      return iter->second(synth, valobj_sp);
+    auto &synthetics(NSArray_Additionals::GetAdditionalSynthetics());
+    auto match = synthetics.Match(class_name, nullptr);
+    if (match) {
+      return match(synth, valobj_sp);
+    }
   }
 
   return nullptr;

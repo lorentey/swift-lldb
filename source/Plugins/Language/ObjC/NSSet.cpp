@@ -30,17 +30,16 @@ using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::formatters;
 
-std::map<ConstString, CXXFunctionSummaryFormat::Callback> &
+NSSet_Additionals::SummaryFormatters &
 NSSet_Additionals::GetAdditionalSummaries() {
-  static std::map<ConstString, CXXFunctionSummaryFormat::Callback> g_map;
-  return g_map;
+  static SummaryFormatters g_formatters;
+  return g_formatters;
 }
 
-std::map<ConstString, CXXSyntheticChildren::CreateFrontEndCallback> &
+NSSet_Additionals::Synthetics &
 NSSet_Additionals::GetAdditionalSynthetics() {
-  static std::map<ConstString, CXXSyntheticChildren::CreateFrontEndCallback>
-      g_map;
-  return g_map;
+  static Synthetics g_synthetics;
+  return g_synthetics;
 }
 
 namespace lldb_private {
@@ -291,12 +290,12 @@ bool lldb_private::formatters::NSSetSummaryProvider(
     if (error.Fail())
       return false;
   } else {
-    auto &map(NSSet_Additionals::GetAdditionalSummaries());
-    auto iter = map.find(class_name_cs), end = map.end();
-    if (iter != end)
-      return iter->second(valobj, stream, options);
-    else
-      return false;
+    auto &summaries(NSSet_Additionals::GetAdditionalSummaries());
+    auto match = summaries.Match(class_name_cs, nullptr);
+    if (match) {
+      return match(valobj, stream, options);
+    }
+    return false;
   }
 
   std::string prefix, suffix;
@@ -364,10 +363,11 @@ lldb_private::formatters::NSSetSyntheticFrontEndCreator(
       return (new Foundation1300::NSSetMSyntheticFrontEnd(valobj_sp));
     }
   } else {
-    auto &map(NSSet_Additionals::GetAdditionalSynthetics());
-    auto iter = map.find(class_name_cs), end = map.end();
-    if (iter != end)
-      return iter->second(synth, valobj_sp);
+    auto &synthetics(NSSet_Additionals::GetAdditionalSynthetics());
+    auto match = synthetics.Match(class_name_cs, nullptr);
+    if (match) {
+      return match(synth, valobj_sp);
+    }
     return nullptr;
   }
 }
