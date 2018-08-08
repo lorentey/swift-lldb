@@ -134,7 +134,7 @@ static void DescribeFileUnit(Stream &s, swift::FileUnit *file_unit) {
   s.PutCString("kind = ");
 
   switch (file_unit->getKind()) {
-  default: { s.PutCString("<unknown>"); }
+  default: { s.PutCString("<unknown>"); break; }
   case swift::FileUnitKind::Source: {
     s.PutCString("Source, ");
     if (swift::SourceFile *source_file =
@@ -144,12 +144,16 @@ static void DescribeFileUnit(Stream &s, swift::FileUnit *file_unit) {
       switch (source_file->Kind) {
       case swift::SourceFileKind::Library:
         s.PutCString("Library");
+        break;
       case swift::SourceFileKind::Main:
         s.PutCString("Main");
+        break;
       case swift::SourceFileKind::REPL:
         s.PutCString("REPL");
+        break;
       case swift::SourceFileKind::SIL:
         s.PutCString("SIL");
+        break;
       }
     }
   } break;

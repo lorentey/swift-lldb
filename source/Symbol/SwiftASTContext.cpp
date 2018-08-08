@@ -5350,6 +5350,7 @@ SwiftASTContext::GetTypeInfo(void *type,
 
   case swift::TypeKind::GenericFunction:
     swift_flags |= eTypeIsGeneric;
+    LLVM_FALLTHROUGH;
   case swift::TypeKind::Function:
     swift_flags |=
         eTypeIsBuiltIn | eTypeHasValue | eTypeIsScalar | eTypeInstanceIsPointer;
@@ -5400,6 +5401,7 @@ SwiftASTContext::GetTypeInfo(void *type,
     break;
   case swift::TypeKind::BoundGenericEnum:
     swift_flags |= eTypeIsGeneric | eTypeIsBound;
+    LLVM_FALLTHROUGH;
   case swift::TypeKind::Enum: {
     SwiftEnumDescriptor *cached_enum_info = GetCachedEnumInfo(type);
     if (cached_enum_info) {
@@ -5413,12 +5415,14 @@ SwiftASTContext::GetTypeInfo(void *type,
 
   case swift::TypeKind::BoundGenericStruct:
     swift_flags |= eTypeIsGeneric | eTypeIsBound;
+    LLVM_FALLTHROUGH;
   case swift::TypeKind::Struct:
     swift_flags |= eTypeHasChildren | eTypeIsStructUnion;
     break;
 
   case swift::TypeKind::BoundGenericClass:
     swift_flags |= eTypeIsGeneric | eTypeIsBound;
+    LLVM_FALLTHROUGH;
   case swift::TypeKind::Class:
     swift_flags |= eTypeHasChildren | eTypeIsClass | eTypeHasValue |
                    eTypeInstanceIsPointer;
@@ -7534,7 +7538,7 @@ bool SwiftASTContext::DumpTypeValue(
     // else if it is a base class, it has no value.
     if (is_base_class)
       break;
-  // Fall through to case below
+    LLVM_FALLTHROUGH;
   case swift::TypeKind::BuiltinInteger:
   case swift::TypeKind::BuiltinFloat:
   case swift::TypeKind::BuiltinRawPointer:

@@ -527,7 +527,7 @@ int Editline::GetCharacter(EditLineGetCharType *c) {
 
       case lldb::eConnectionStatusInterrupted:
         lldbassert(0 && "Interrupts should have been handled above.");
-
+        LLVM_FALLTHROUGH;
       case lldb::eConnectionStatusError:        // Check GetError() for details
       case lldb::eConnectionStatusTimedOut:     // Request timed out
       case lldb::eConnectionStatusEndOfFile:    // End-of-file encountered
