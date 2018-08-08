@@ -728,7 +728,7 @@ static void LoadSwiftFormatters(lldb::TypeCategoryImplSP swift_category_sp) {
       .SetDontShowChildren(true)
       .SetHideItemNames(true)
       .SetShowMembersOneLiner(false);
-  const char *accelSIMDTypes = "^(simd\.)?(simd_)?("
+  const char *accelSIMDTypes = "^(simd\\.)?(simd_)?("
                                "(int|uint|float|double)[234]|"
                                "(float|double)[234]x[234]|"
                                "quat(f|d)"
